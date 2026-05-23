@@ -31,11 +31,9 @@
     
     <div style="position: relative; max-width: 500px; margin: auto;">
         <span id="badgeLive" class="badge" style="position: absolute; top: 15px; right: 10px; display: none;">🔴 REC</span>
-        
         <video id="videoMonitor" autoplay playsinline muted style="cursor: pointer;" onclick="this.play()"></video>
-        
         <p id="teksBantu" style="display: none; color: #ffc107; font-size: 12px; margin-top: 5px; font-weight: bold;">
-            ⚠️ Jika layar masih hitam, KETUK (TAP) layar videonya agar mulai!
+            ⚠️ Jika video macet/hitam, KETUK layar videonya!
         </p>
     </div>
 
@@ -50,8 +48,6 @@
         </div>
 
         <hr style="border-color: #333; margin: 15px 0;">
-        
-        <p style="margin: 0; font-size: 12px; color: #aaa;">Sistem merekam otomatis</p>
         <button id="btnDVR" class="btn">⏪ Buka Timeline Kejadian Awal</button>
     </div>
 
@@ -61,6 +57,9 @@
     </div>
 
 <script>
+    // ID WAJIB SAMA DENGAN KAMERA
+    const ID_TUJUAN = 'cctv-pribadi-final-999';
+
     const statusInfo = document.getElementById('statusInfo');
     const videoMonitor = document.getElementById('videoMonitor');
     const badgeLive = document.getElementById('badgeLive');
@@ -76,7 +75,6 @@
     let dataKoneksi = null;   
     let micStream = null;
     let isMicOn = false;
-
     let mediaRecorder;
     let recordedChunks = [];
 
@@ -88,20 +86,15 @@
                 micStream = streamHP;
                 micStream.getAudioTracks()[0].enabled = false; 
 
-                const call = peer.call('cctv-anti-gagal-123', micStream);
+                const call = peer.call(ID_TUJUAN, micStream);
                 
                 call.on('stream', (streamKamera) => {
                     videoMonitor.srcObject = streamKamera;
-                    
-                    // Tampilkan pesan bantuan ketuk layar
                     teksBantu.style.display = 'block';
 
-                    // Coba putar otomatis. Jika ditolak HP, user harus klik layarnya
                     videoMonitor.play().then(() => {
-                        teksBantu.style.display = 'none'; // Sembunyikan kalau sukses otomatis
-                    }).catch(e => {
-                        console.warn("Butuh klik layar agar video jalan:", e);
-                    });
+                        teksBantu.style.display = 'none'; 
+                    }).catch(e => console.log("Butuh klik layar agar jalan."));
 
                     statusInfo.innerText = "🟢 TERHUBUNG DENGAN KAMERA";
                     document.getElementById('btnConnect').style.display = 'none';
@@ -111,9 +104,9 @@
                     mulaiPerekamanBackground(streamKamera);
                 });
 
-                dataKoneksi = peer.connect('cctv-anti-gagal-123');
+                dataKoneksi = peer.connect(ID_TUJUAN);
             })
-            .catch((err) => alert("Gagal! Pastikan izin mikrofon disetujui."));
+            .catch((err) => alert("Gagal! Pastikan izin mikrofon HP disetujui."));
     });
 
     document.getElementById('btnMic').addEventListener('click', (e) => {
@@ -158,11 +151,7 @@
         const videoURL = URL.createObjectURL(superBuffer);
         
         videoReplay.src = videoURL;
-        videoReplay.onloadeddata = () => {
-            console.log("Rekaman siap!");
-        };
     });
 </script>
-
 </body>
 </html>
