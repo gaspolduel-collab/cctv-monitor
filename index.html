@@ -10,15 +10,12 @@
         video { background: #000; width: 100%; max-width: 500px; border-radius: 8px; border: 2px solid #333; margin-top: 10px; }
         .btn { padding: 12px; font-size: 14px; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; width: 100%; margin-top: 8px; box-sizing: border-box; }
         #btnConnect { background: #28a745; color: white; padding: 16px; font-size: 16px; }
-        
         .kontrol { background: #1e1e1e; padding: 10px; border-radius: 8px; margin-top: 15px; display: none; max-width: 500px; margin-left: auto; margin-right: auto; }
-        
         .flex-btn { display: flex; gap: 8px; }
         #btnMic { background: #6c757d; color: white; }
         #btnJepret { background: #007bff; color: white; }
         #btnAlarmOn { background: #dc3545; color: white; }
         #btnAlarmOff { background: #ffc107; color: #000; }
-        
         #btnDVR { background: #17a2b8; color: white; margin-top: 15px; }
         #dvrArea { display: none; background: #222; padding: 10px; border-radius: 8px; margin-top: 10px; }
         .badge { background: red; color: white; font-size: 10px; padding: 3px 6px; border-radius: 10px; vertical-align: top; animation: blink 1s infinite; }
@@ -34,7 +31,12 @@
     
     <div style="position: relative; max-width: 500px; margin: auto;">
         <span id="badgeLive" class="badge" style="position: absolute; top: 15px; right: 10px; display: none;">🔴 REC</span>
-        <video id="videoMonitor" autoplay playsinline muted></video>
+        
+        <video id="videoMonitor" autoplay playsinline muted style="cursor: pointer;" onclick="this.play()"></video>
+        
+        <p id="teksBantu" style="display: none; color: #ffc107; font-size: 12px; margin-top: 5px; font-weight: bold;">
+            ⚠️ Jika layar masih hitam, KETUK (TAP) layar videonya agar mulai!
+        </p>
     </div>
 
     <div id="kontrolArea" class="kontrol">
@@ -49,7 +51,7 @@
 
         <hr style="border-color: #333; margin: 15px 0;">
         
-        <p style="margin: 0; font-size: 12px; color: #aaa;">Sistem merekam otomatis sejak terhubung</p>
+        <p style="margin: 0; font-size: 12px; color: #aaa;">Sistem merekam otomatis</p>
         <button id="btnDVR" class="btn">⏪ Buka Timeline Kejadian Awal</button>
     </div>
 
@@ -65,8 +67,8 @@
     const kontrolArea = document.getElementById('kontrolArea');
     const dvrArea = document.getElementById('dvrArea');
     const videoReplay = document.getElementById('videoReplay');
+    const teksBantu = document.getElementById('teksBantu');
     
-    // Menggunakan STUN Server agar tembus jaringan lokal
     const peer = new Peer({
         config: { 'iceServers': [{ urls: 'stun:stun.l.google.com:19302' }] }
     }); 
@@ -86,18 +88,22 @@
                 micStream = streamHP;
                 micStream.getAudioTracks()[0].enabled = false; 
 
-                // Menghubungi ID Kamera
-                const call = peer.call('cctv-kamar-unik-9988', micStream);
+                const call = peer.call('cctv-anti-gagal-123', micStream);
                 
                 call.on('stream', (streamKamera) => {
                     videoMonitor.srcObject = streamKamera;
                     
-                    // Paksa mainkan video (fix layar hitam)
-                    videoMonitor.onloadedmetadata = () => {
-                        videoMonitor.play().catch(e => console.log(e));
-                    };
+                    // Tampilkan pesan bantuan ketuk layar
+                    teksBantu.style.display = 'block';
 
-                    statusInfo.innerText = "🟢 TERHUBUNG";
+                    // Coba putar otomatis. Jika ditolak HP, user harus klik layarnya
+                    videoMonitor.play().then(() => {
+                        teksBantu.style.display = 'none'; // Sembunyikan kalau sukses otomatis
+                    }).catch(e => {
+                        console.warn("Butuh klik layar agar video jalan:", e);
+                    });
+
+                    statusInfo.innerText = "🟢 TERHUBUNG DENGAN KAMERA";
                     document.getElementById('btnConnect').style.display = 'none';
                     kontrolArea.style.display = 'block';
                     badgeLive.style.display = 'inline-block';
@@ -105,7 +111,7 @@
                     mulaiPerekamanBackground(streamKamera);
                 });
 
-                dataKoneksi = peer.connect('cctv-kamar-unik-9988');
+                dataKoneksi = peer.connect('cctv-anti-gagal-123');
             })
             .catch((err) => alert("Gagal! Pastikan izin mikrofon disetujui."));
     });
@@ -124,7 +130,7 @@
         canvas.getContext('2d').drawImage(videoMonitor, 0, 0, canvas.width, canvas.height);
         
         const a = document.createElement('a');
-        a.download = `CCTV-${Date.now()}.jpg`;
+        a.download = `CCTV-Snap-${Date.now()}.jpg`;
         a.href = canvas.toDataURL('image/jpeg');
         a.click();
     });
@@ -152,9 +158,8 @@
         const videoURL = URL.createObjectURL(superBuffer);
         
         videoReplay.src = videoURL;
-        // Hapus onloadedmetadata yang bikin error, ganti dengan auto-play standar
         videoReplay.onloadeddata = () => {
-            console.log("Rekaman siap diputar!");
+            console.log("Rekaman siap!");
         };
     });
 </script>
