@@ -152,9 +152,9 @@
         const videoURL = URL.createObjectURL(superBuffer);
         
         videoReplay.src = videoURL;
-        videoReplay.onloadedmetadata = () => {
-            videoReplay.currentTime = videoReplay.duration;
-            videoReplay.pause(); 
+        // Hapus onloadedmetadata yang bikin error, ganti dengan auto-play standar
+        videoReplay.onloadeddata = () => {
+            console.log("Rekaman siap diputar!");
         };
     });
 </script>
