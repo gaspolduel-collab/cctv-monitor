@@ -12,8 +12,7 @@
         #btnConnect { background: #28a745; color: white; padding: 16px; font-size: 16px; }
         .kontrol { background: #1e1e1e; padding: 10px; border-radius: 8px; margin-top: 15px; display: none; max-width: 500px; margin-left: auto; margin-right: auto; }
         .flex-btn { display: flex; gap: 8px; }
-        #btnMic { background: #6c757d; color: white; }
-        #btnJepret { background: #007bff; color: white; }
+        #btnJepret { background: #007bff; color: white; width: 100%; }
         #btnAlarmOn { background: #dc3545; color: white; }
         #btnAlarmOff { background: #ffc107; color: #000; }
         #btnDVR { background: #17a2b8; color: white; margin-top: 15px; }
@@ -27,7 +26,7 @@
     <h2>📱 Monitor HP</h2>
     <p id="statusInfo">Klik tombol untuk menyambungkan</p>
     
-    <button id="btnConnect" class="btn">🔌 Sambungkan ke Kamera Laptop</button>
+    <button id="btnConnect" class="btn">🔌 Sambungkan ke Kamera</button>
     
     <div style="position: relative; max-width: 500px; margin: auto;">
         <span id="badgeLive" class="badge" style="position: absolute; top: 15px; right: 10px; display: none;">🔴 REC</span>
@@ -38,10 +37,7 @@
     </div>
 
     <div id="kontrolArea" class="kontrol">
-        <div class="flex-btn">
-            <button id="btnMic" class="btn">🔇 Mic OFF</button>
-            <button id="btnJepret" class="btn">📸 Jepret</button>
-        </div>
+        <button id="btnJepret" class="btn">📸 Jepret Foto</button>
         <div class="flex-btn">
             <button id="btnAlarmOn" class="btn">🚨 ALARM ON</button>
             <button id="btnAlarmOff" class="btn">🔕 ALARM OFF</button>
@@ -57,7 +53,6 @@
     </div>
 
 <script>
-    // ID WAJIB SAMA DENGAN KAMERA
     const ID_TUJUAN = 'cctv-pribadi-final-999';
 
     const statusInfo = document.getElementById('statusInfo');
@@ -73,47 +68,35 @@
     }); 
     
     let dataKoneksi = null;   
-    let micStream = null;
-    let isMicOn = false;
     let mediaRecorder;
     let recordedChunks = [];
 
     document.getElementById('btnConnect').addEventListener('click', () => {
         statusInfo.innerText = "Mencari laptop...";
 
-        navigator.mediaDevices.getUserMedia({ video: false, audio: true })
-            .then((streamHP) => {
-                micStream = streamHP;
-                micStream.getAudioTracks()[0].enabled = false; 
+        // PERBAIKAN FATAL: Panggil kamera TANPA meminta izin mic dari pemantau.
+        // Ini memastikan tidak ada bentrok hardware.
+        const call = peer.call(ID_TUJUAN);
+        
+        call.on('stream', (streamKamera) => {
+            console.log("Stream video berhasil ditarik!");
+            videoMonitor.srcObject = streamKamera;
+            teksBantu.style.display = 'block';
 
-                const call = peer.call(ID_TUJUAN, micStream);
-                
-                call.on('stream', (streamKamera) => {
-                    videoMonitor.srcObject = streamKamera;
-                    teksBantu.style.display = 'block';
+            videoMonitor.play().then(() => {
+                teksBantu.style.display = 'none'; 
+            }).catch(e => console.log("Butuh klik layar."));
 
-                    videoMonitor.play().then(() => {
-                        teksBantu.style.display = 'none'; 
-                    }).catch(e => console.log("Butuh klik layar agar jalan."));
+            statusInfo.innerText = "🟢 TERHUBUNG DENGAN KAMERA";
+            document.getElementById('btnConnect').style.display = 'none';
+            kontrolArea.style.display = 'block';
+            badgeLive.style.display = 'inline-block';
 
-                    statusInfo.innerText = "🟢 TERHUBUNG DENGAN KAMERA";
-                    document.getElementById('btnConnect').style.display = 'none';
-                    kontrolArea.style.display = 'block';
-                    badgeLive.style.display = 'inline-block';
+            mulaiPerekamanBackground(streamKamera);
+        });
 
-                    mulaiPerekamanBackground(streamKamera);
-                });
-
-                dataKoneksi = peer.connect(ID_TUJUAN);
-            })
-            .catch((err) => alert("Gagal! Pastikan izin mikrofon HP disetujui."));
-    });
-
-    document.getElementById('btnMic').addEventListener('click', (e) => {
-        isMicOn = !isMicOn;
-        micStream.getAudioTracks()[0].enabled = isMicOn;
-        e.target.innerText = isMicOn ? "🎙️ Mic ON" : "🔇 Mic OFF";
-        e.target.style.background = isMicOn ? "#28a745" : "#6c757d";
+        // Jalur data tetap dibuka untuk tombol Alarm
+        dataKoneksi = peer.connect(ID_TUJUAN);
     });
 
     document.getElementById('btnJepret').addEventListener('click', () => {
@@ -144,13 +127,10 @@
     }
 
     document.getElementById('btnDVR').addEventListener('click', () => {
-        if (recordedChunks.length === 0) return alert("Belum ada data terekam. Tunggu sebentar.");
-        
+        if (recordedChunks.length === 0) return alert("Belum ada data terekam.");
         dvrArea.style.display = 'block';
         const superBuffer = new Blob(recordedChunks, { type: 'video/webm' });
-        const videoURL = URL.createObjectURL(superBuffer);
-        
-        videoReplay.src = videoURL;
+        videoReplay.src = URL.createObjectURL(superBuffer);
     });
 </script>
 </body>
