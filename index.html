@@ -89,14 +89,24 @@
 
                 const call = peer.call('cctv-laptop-rahasia-123', micStream);
                 
+                // (Ini bagian saat menerima stream dari laptop)
                 call.on('stream', (streamKamera) => {
+                    console.log("Stream video masuk dari laptop!"); // Cek di Inspect Element
                     videoMonitor.srcObject = streamKamera;
+                    
+                    // FIX: Paksa browser untuk memutar videonya
+                    videoMonitor.onloadedmetadata = () => {
+                        videoMonitor.play().catch((e) => {
+                            console.error("Gagal memutar video:", e);
+                            alert("Klik layar video untuk memulai gambar!");
+                        });
+                    };
+
                     statusInfo.innerText = "🟢 TERHUBUNG";
                     document.getElementById('btnConnect').style.display = 'none';
                     kontrolArea.style.display = 'block';
                     badgeLive.style.display = 'inline-block';
 
-                    // Otomatis mulai merekam secara background untuk fitur geser kiri
                     mulaiPerekamanBackground(streamKamera);
                 });
 
