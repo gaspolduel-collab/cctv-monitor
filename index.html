@@ -32,13 +32,11 @@
     
     <button id="btnConnect" class="btn">🔌 Sambungkan ke Kamera Laptop</button>
     
-    <!-- Video Live -->
     <div style="position: relative; max-width: 500px; margin: auto;">
         <span id="badgeLive" class="badge" style="position: absolute; top: 15px; right: 10px; display: none;">🔴 REC</span>
         <video id="videoMonitor" autoplay playsinline muted></video>
     </div>
 
-    <!-- Panel Kontrol -->
     <div id="kontrolArea" class="kontrol">
         <div class="flex-btn">
             <button id="btnMic" class="btn">🔇 Mic OFF</button>
@@ -55,10 +53,8 @@
         <button id="btnDVR" class="btn">⏪ Buka Timeline Kejadian Awal</button>
     </div>
 
-    <!-- Area Timeline Replay (Bisa digeser ke kiri) -->
     <div id="dvrArea" class="kontrol">
         <h4 style="margin: 0 0 10px 0; color: #17a2b8;">⏪ Geser Kiri untuk Replay</h4>
-        <!-- Tambahkan atribut controls agar slider muncul -->
         <video id="videoReplay" controls playsinline></video>
     </div>
 
@@ -70,12 +66,15 @@
     const dvrArea = document.getElementById('dvrArea');
     const videoReplay = document.getElementById('videoReplay');
     
-    const peer = new Peer(); 
+    // Menggunakan STUN Server agar tembus jaringan lokal
+    const peer = new Peer({
+        config: { 'iceServers': [{ urls: 'stun:stun.l.google.com:19302' }] }
+    }); 
+    
     let dataKoneksi = null;   
     let micStream = null;
     let isMicOn = false;
 
-    // Variabel DVR (Perekam Latar Belakang)
     let mediaRecorder;
     let recordedChunks = [];
 
@@ -85,22 +84,17 @@
         navigator.mediaDevices.getUserMedia({ video: false, audio: true })
             .then((streamHP) => {
                 micStream = streamHP;
-                micStream.getAudioTracks()[0].enabled = false; // Mute mic default
+                micStream.getAudioTracks()[0].enabled = false; 
 
-                const call = peer.call('cctv-laptop-rahasia-6767', micStream);
+                // Menghubungi ID Kamera
+                const call = peer.call('cctv-kamar-unik-9988', micStream);
                 
-                // (Ini bagian saat menerima stream dari laptop)
-                // Di pemantau.html, cari bagian call.on('stream', ...)
                 call.on('stream', (streamKamera) => {
-                    console.log("Stream video masuk dari laptop!"); 
                     videoMonitor.srcObject = streamKamera;
                     
-                    // FIX: Paksa browser untuk memutar videonya
+                    // Paksa mainkan video (fix layar hitam)
                     videoMonitor.onloadedmetadata = () => {
-                        videoMonitor.play().catch((e) => {
-                            console.error("Gagal memutar video:", e);
-                            alert("Klik layar video untuk memulai gambar!");
-                        });
+                        videoMonitor.play().catch(e => console.log(e));
                     };
 
                     statusInfo.innerText = "🟢 TERHUBUNG";
@@ -111,12 +105,11 @@
                     mulaiPerekamanBackground(streamKamera);
                 });
 
-                dataKoneksi = peer.connect('cctv-laptop-rahasia-6767');
+                dataKoneksi = peer.connect('cctv-kamar-unik-9988');
             })
             .catch((err) => alert("Gagal! Pastikan izin mikrofon disetujui."));
     });
 
-    // Mic HP On/Off
     document.getElementById('btnMic').addEventListener('click', (e) => {
         isMicOn = !isMicOn;
         micStream.getAudioTracks()[0].enabled = isMicOn;
@@ -124,7 +117,6 @@
         e.target.style.background = isMicOn ? "#28a745" : "#6c757d";
     });
 
-    // Jepret Foto
     document.getElementById('btnJepret').addEventListener('click', () => {
         const canvas = document.createElement('canvas');
         canvas.width = videoMonitor.videoWidth;
@@ -137,7 +129,6 @@
         a.click();
     });
 
-    // Alarm
     document.getElementById('btnAlarmOn').addEventListener('click', () => {
         if (dataKoneksi) dataKoneksi.send('ALARM_ON');
     });
@@ -145,32 +136,25 @@
         if (dataKoneksi) dataKoneksi.send('ALARM_OFF');
     });
 
-    // --- FITUR DVR (GESER KIRI) ---
     function mulaiPerekamanBackground(stream) {
         mediaRecorder = new MediaRecorder(stream);
         mediaRecorder.ondataavailable = (e) => {
             if (e.data.size > 0) recordedChunks.push(e.data);
         };
-        // Potong rekaman tiap 1 detik agar bisa di-update
         mediaRecorder.start(1000); 
     }
 
-    // Tombol untuk memunculkan video yang bisa digeser
     document.getElementById('btnDVR').addEventListener('click', () => {
         if (recordedChunks.length === 0) return alert("Belum ada data terekam. Tunggu sebentar.");
         
         dvrArea.style.display = 'block';
-        
-        // Gabungkan semua rekaman sementara menjadi 1 file video
         const superBuffer = new Blob(recordedChunks, { type: 'video/webm' });
         const videoURL = URL.createObjectURL(superBuffer);
         
         videoReplay.src = videoURL;
-        
-        // Otomatis geser ke akhir (kejadian terbaru) agar user tinggal geser ke kiri (mundur)
         videoReplay.onloadedmetadata = () => {
             videoReplay.currentTime = videoReplay.duration;
-            videoReplay.pause(); // Pause, biarkan user yang geser slider
+            videoReplay.pause(); 
         };
     });
 </script>
