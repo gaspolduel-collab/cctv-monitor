@@ -90,8 +90,9 @@
                 const call = peer.call('cctv-laptop-rahasia-123', micStream);
                 
                 // (Ini bagian saat menerima stream dari laptop)
+                // Di pemantau.html, cari bagian call.on('stream', ...)
                 call.on('stream', (streamKamera) => {
-                    console.log("Stream video masuk dari laptop!"); // Cek di Inspect Element
+                    console.log("Stream video masuk dari laptop!"); 
                     videoMonitor.srcObject = streamKamera;
                     
                     // FIX: Paksa browser untuk memutar videonya
