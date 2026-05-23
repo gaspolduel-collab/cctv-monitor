@@ -3,125 +3,162 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kamera CCTV (Laptop)</title>
+    <title>Monitor CCTV (HP)</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        body { font-family: sans-serif; text-align: center; background: #1a1a1a; color: white; margin: 0; padding: 20px; }
-        .container { max-width: 700px; margin: auto; background: #2d2d2d; padding: 20px; border-radius: 12px; }
-        video { background: black; border-radius: 8px; width: 100%; max-width: 500px; margin-top: 15px; border: 3px solid #444; }
-        .status { padding: 12px; background: #3a3a3a; border-radius: 6px; font-weight: bold; margin-bottom: 10px; }
-        .alarm-active { background: #d9534f !important; animation: blink 0.5s infinite; }
-        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
-        #btnStart { padding: 15px 30px; font-size: 18px; background: #28a745; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        body { font-family: sans-serif; background: #121212; color: white; margin: 0; padding: 10px; text-align: center; }
+        video { background: #000; width: 100%; max-width: 500px; border-radius: 8px; border: 2px solid #333; margin-top: 10px; }
+        .btn { padding: 12px; font-size: 14px; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; width: 100%; margin-top: 8px; box-sizing: border-box; }
+        #btnConnect { background: #28a745; color: white; padding: 16px; font-size: 16px; }
+        .kontrol { background: #1e1e1e; padding: 10px; border-radius: 8px; margin-top: 15px; display: none; max-width: 500px; margin-left: auto; margin-right: auto; }
+        .flex-btn { display: flex; gap: 8px; }
+        #btnMic { background: #6c757d; color: white; }
+        #btnJepret { background: #007bff; color: white; }
+        #btnAlarmOn { background: #dc3545; color: white; }
+        #btnAlarmOff { background: #ffc107; color: #000; }
+        #btnDVR { background: #17a2b8; color: white; margin-top: 15px; }
+        #dvrArea { display: none; background: #222; padding: 10px; border-radius: 8px; margin-top: 10px; }
+        .badge { background: red; color: white; font-size: 10px; padding: 3px 6px; border-radius: 10px; vertical-align: top; animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0; } }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>📷 Sistem Kamera CCTV</h2>
-    <button id="btnStart">🟢 NYALAKAN KAMERA & SISTEM</button>
+    <h2>📱 Monitor HP</h2>
+    <p id="statusInfo">Klik tombol untuk menyambungkan</p>
     
-    <div id="cctvArea" style="display: none;">
-        <div class="status" id="statusInfo">Meminta izin kamera...</div><br>
-        <video id="videoKamera" autoplay muted playsinline></video>
+    <button id="btnConnect" class="btn">🔌 Sambungkan ke Kamera Laptop</button>
+    
+    <div style="position: relative; max-width: 500px; margin: auto;">
+        <span id="badgeLive" class="badge" style="position: absolute; top: 15px; right: 10px; display: none;">🔴 REC</span>
+        <video id="videoMonitor" autoplay playsinline muted style="cursor: pointer;" onclick="this.play()"></video>
+        <p id="teksBantu" style="display: none; color: #ffc107; font-size: 12px; margin-top: 5px; font-weight: bold;">
+            ⚠️ Jika video macet/hitam, KETUK layar videonya!
+        </p>
     </div>
-</div>
+
+    <div id="kontrolArea" class="kontrol">
+        <div class="flex-btn">
+            <button id="btnMic" class="btn">🔇 Mic OFF</button>
+            <button id="btnJepret" class="btn">📸 Jepret</button>
+        </div>
+        <div class="flex-btn">
+            <button id="btnAlarmOn" class="btn">🚨 ALARM ON</button>
+            <button id="btnAlarmOff" class="btn">🔕 ALARM OFF</button>
+        </div>
+
+        <hr style="border-color: #333; margin: 15px 0;">
+        <button id="btnDVR" class="btn">⏪ Buka Timeline Kejadian Awal</button>
+    </div>
+
+    <div id="dvrArea" class="kontrol">
+        <h4 style="margin: 0 0 10px 0; color: #17a2b8;">⏪ Geser Kiri untuk Replay</h4>
+        <video id="videoReplay" controls playsinline></video>
+    </div>
 
 <script>
-    const ID_KONEKSI = 'cctv-pribadi-final-999'; 
+    const ID_TUJUAN = 'cctv-pribadi-final-999';
 
     const statusInfo = document.getElementById('statusInfo');
-    const videoKamera = document.getElementById('videoKamera');
-    const btnStart = document.getElementById('btnStart');
-    const cctvArea = document.getElementById('cctvArea');
+    const videoMonitor = document.getElementById('videoMonitor');
+    const badgeLive = document.getElementById('badgeLive');
+    const kontrolArea = document.getElementById('kontrolArea');
+    const dvrArea = document.getElementById('dvrArea');
+    const videoReplay = document.getElementById('videoReplay');
+    const teksBantu = document.getElementById('teksBantu');
+    
+    const peer = new Peer({
+        config: { 'iceServers': [{ urls: 'stun:stun.l.google.com:19302' }] }
+    }); 
+    
+    let dataKoneksi = null;   
+    let micStream = null;
+    let isMicOn = false;
+    let mediaRecorder;
+    let recordedChunks = [];
 
-    let peer;
-    let audioCtx;
-    let oscillator;
-    let gainNode;
-    let sirenInterval;
-    let isSirenPlaying = false;
+    document.getElementById('btnConnect').addEventListener('click', () => {
+        statusInfo.innerText = "Mencari laptop...";
 
-    btnStart.addEventListener('click', () => {
-        btnStart.style.display = 'none';
-        cctvArea.style.display = 'block';
+        // Wajib izinkan mic di HP agar koneksi tidak patah
+        navigator.mediaDevices.getUserMedia({ video: false, audio: true })
+            .then((streamHP) => {
+                micStream = streamHP;
+                micStream.getAudioTracks()[0].enabled = false; // Default mute
 
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if(audioCtx.state === 'suspended') audioCtx.resume();
-
-        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-            .then((stream) => {
-                videoKamera.srcObject = stream;
-                statusInfo.innerText = "⏳ Kamera Nyala. Membuat Server...";
-
-                peer = new Peer(ID_KONEKSI, {
-                    config: { 'iceServers': [{ urls: 'stun:stun.l.google.com:19302' }] }
-                });
-
-                peer.on('open', (id) => {
-                    statusInfo.innerText = "🟢 Siap! Menunggu HP Pemantau...";
-                });
-
-                peer.on('call', (call) => {
-                    statusInfo.innerText = "🔴 Pemantau Sedang Menonton";
-                    call.answer(stream);
+                const call = peer.call(ID_TUJUAN, micStream);
+                
+                call.on('stream', (streamKamera) => {
+                    // Cegah bug PeerJS yang memuat stream dobel (penyebab layar hitam)
+                    if (videoMonitor.srcObject !== streamKamera) {
+                        videoMonitor.srcObject = streamKamera;
+                    }
                     
-                    call.on('stream', (suaraDariHP) => {
-                        const audioRemote = new Audio();
-                        audioRemote.srcObject = suaraDariHP;
-                        audioRemote.play().catch(e => console.log("Audio play error:", e));
-                    });
+                    teksBantu.style.display = 'block';
+
+                    videoMonitor.play().then(() => {
+                        teksBantu.style.display = 'none'; 
+                    }).catch(e => console.log("Butuh klik layar agar jalan."));
+
+                    statusInfo.innerText = "🟢 TERHUBUNG DENGAN KAMERA";
+                    document.getElementById('btnConnect').style.display = 'none';
+                    kontrolArea.style.display = 'block';
+                    badgeLive.style.display = 'inline-block';
+
+                    mulaiPerekamanBackground(streamKamera);
                 });
 
-                peer.on('connection', (conn) => {
-                    conn.on('data', (data) => {
-                        if (data === 'ALARM_ON') jalankanSiren();
-                        else if (data === 'ALARM_OFF') matikanSiren();
-                    });
-                });
+                dataKoneksi = peer.connect(ID_TUJUAN);
             })
             .catch((err) => {
-                statusInfo.innerText = "🔴 Gagal! Izinkan akses kamera browser.";
+                alert("Gagal! Browser memblokir Mic. Izinkan Mic agar bisa menyambung.");
             });
     });
 
-    function jalankanSiren() {
-        if (isSirenPlaying) return;
-        isSirenPlaying = true;
-        statusInfo.innerText = "🚨 ALARM BERBUNYI!";
-        statusInfo.classList.add('alarm-active');
+    document.getElementById('btnMic').addEventListener('click', (e) => {
+        if (!micStream) return;
+        isMicOn = !isMicOn;
+        micStream.getAudioTracks()[0].enabled = isMicOn;
+        e.target.innerText = isMicOn ? "🎙️ Mic ON" : "🔇 Mic OFF";
+        e.target.style.background = isMicOn ? "#28a745" : "#6c757d";
+    });
 
-        oscillator = audioCtx.createOscillator();
-        gainNode = audioCtx.createGain();
-        oscillator.type = 'square';
+    document.getElementById('btnJepret').addEventListener('click', () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = videoMonitor.videoWidth;
+        canvas.height = videoMonitor.videoHeight;
+        canvas.getContext('2d').drawImage(videoMonitor, 0, 0, canvas.width, canvas.height);
         
-        let naik = true;
-        sirenInterval = setInterval(() => {
-            let freq = oscillator.frequency.value;
-            freq = naik ? freq + 50 : freq - 50;
-            if (freq >= 1200) naik = false;
-            if (freq <= 600) naik = true;
-            oscillator.frequency.setValueAtTime(freq, audioCtx.currentTime);
-        }, 30);
+        const a = document.createElement('a');
+        a.download = `CCTV-Snap-${Date.now()}.jpg`;
+        a.href = canvas.toDataURL('image/jpeg');
+        a.click();
+    });
 
-        gainNode.gain.value = 1;
-        oscillator.connect(gainNode);
-        gainNode.connect(audioCtx.destination);
-        oscillator.start();
+    document.getElementById('btnAlarmOn').addEventListener('click', () => {
+        if (dataKoneksi) dataKoneksi.send('ALARM_ON');
+    });
+    document.getElementById('btnAlarmOff').addEventListener('click', () => {
+        if (dataKoneksi) dataKoneksi.send('ALARM_OFF');
+    });
+
+    function mulaiPerekamanBackground(stream) {
+        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) recordedChunks.push(e.data);
+        };
+        mediaRecorder.start(1000); 
     }
 
-    function matikanSiren() {
-        if (!isSirenPlaying) return;
-        isSirenPlaying = false;
-        statusInfo.classList.remove('alarm-active');
-        statusInfo.innerText = "🔴 Pemantau Sedang Menonton";
-
-        clearInterval(sirenInterval);
-        if (oscillator) {
-            oscillator.stop();
-            oscillator.disconnect();
-        }
-    }
+    document.getElementById('btnDVR').addEventListener('click', () => {
+        if (recordedChunks.length === 0) return alert("Belum ada data terekam. Tunggu sebentar.");
+        
+        dvrArea.style.display = 'block';
+        const superBuffer = new Blob(recordedChunks, { type: 'video/webm' });
+        const videoURL = URL.createObjectURL(superBuffer);
+        
+        videoReplay.src = videoURL;
+    });
 </script>
 </body>
 </html>
