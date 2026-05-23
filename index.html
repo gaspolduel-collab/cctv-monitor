@@ -3,130 +3,165 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kamera CCTV (Laptop)</title>
+    <title>Monitor CCTV (HP)</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        body { font-family: sans-serif; text-align: center; background: #1a1a1a; color: white; margin: 0; padding: 20px; }
-        .container { max-width: 700px; margin: auto; background: #2d2d2d; padding: 20px; border-radius: 12px; }
-        video { background: black; border-radius: 8px; width: 100%; max-width: 500px; margin-top: 15px; border: 3px solid #444; }
-        .status { padding: 12px; background: #3a3a3a; border-radius: 6px; font-weight: bold; margin-bottom: 10px; }
-        .alarm-active { background: #d9534f !important; animation: blink 0.5s infinite; }
-        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
-        #btnStart { padding: 15px 30px; font-size: 18px; background: #28a745; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        body { font-family: sans-serif; background: #121212; color: white; margin: 0; padding: 10px; text-align: center; }
+        video { background: #000; width: 100%; max-width: 500px; border-radius: 8px; border: 2px solid #333; margin-top: 10px; }
+        .btn { padding: 12px; font-size: 14px; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; width: 100%; margin-top: 8px; box-sizing: border-box; }
+        #btnConnect { background: #28a745; color: white; padding: 16px; font-size: 16px; }
+        
+        .kontrol { background: #1e1e1e; padding: 10px; border-radius: 8px; margin-top: 15px; display: none; max-width: 500px; margin-left: auto; margin-right: auto; }
+        
+        .flex-btn { display: flex; gap: 8px; }
+        #btnMic { background: #6c757d; color: white; }
+        #btnJepret { background: #007bff; color: white; }
+        #btnAlarmOn { background: #dc3545; color: white; }
+        #btnAlarmOff { background: #ffc107; color: #000; }
+        
+        #btnDVR { background: #17a2b8; color: white; margin-top: 15px; }
+        #dvrArea { display: none; background: #222; padding: 10px; border-radius: 8px; margin-top: 10px; }
+        .badge { background: red; color: white; font-size: 10px; padding: 3px 6px; border-radius: 10px; vertical-align: top; animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0; } }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>📷 Sistem Kamera CCTV</h2>
-    <p>Browser memblokir kamera otomatis. Klik tombol di bawah untuk menyalakan!</p>
+    <h2>📱 Monitor HP</h2>
+    <p id="statusInfo">Klik tombol untuk menyambungkan</p>
     
-    <button id="btnStart">🟢 NYALAKAN KAMERA & SISTEM ALARM</button>
+    <button id="btnConnect" class="btn">🔌 Sambungkan ke Kamera Laptop</button>
     
-    <div id="cctvArea" style="display: none;">
-        <div class="status" id="statusInfo">Menyiapkan Kamera...</div><br>
-        <!-- WAJIB Muted agar suara dari mic HP tidak feedback ke mic laptop sendiri -->
-        <video id="videoKamera" autoplay muted playsinline></video>
+    <!-- Video Live -->
+    <div style="position: relative; max-width: 500px; margin: auto;">
+        <span id="badgeLive" class="badge" style="position: absolute; top: 15px; right: 10px; display: none;">🔴 REC</span>
+        <video id="videoMonitor" autoplay playsinline></video>
     </div>
-</div>
+
+    <!-- Panel Kontrol -->
+    <div id="kontrolArea" class="kontrol">
+        <div class="flex-btn">
+            <button id="btnMic" class="btn">🔇 Mic OFF</button>
+            <button id="btnJepret" class="btn">📸 Jepret</button>
+        </div>
+        <div class="flex-btn">
+            <button id="btnAlarmOn" class="btn">🚨 ALARM ON</button>
+            <button id="btnAlarmOff" class="btn">🔕 ALARM OFF</button>
+        </div>
+
+        <hr style="border-color: #333; margin: 15px 0;">
+        
+        <p style="margin: 0; font-size: 12px; color: #aaa;">Sistem merekam otomatis sejak terhubung</p>
+        <button id="btnDVR" class="btn">⏪ Buka Timeline Kejadian Awal</button>
+    </div>
+
+    <!-- Area Timeline Replay (Bisa digeser ke kiri) -->
+    <div id="dvrArea" class="kontrol">
+        <h4 style="margin: 0 0 10px 0; color: #17a2b8;">⏪ Geser Kiri untuk Replay</h4>
+        <!-- Tambahkan atribut controls agar slider muncul -->
+        <video id="videoReplay" controls playsinline></video>
+    </div>
 
 <script>
     const statusInfo = document.getElementById('statusInfo');
-    const videoKamera = document.getElementById('videoKamera');
-    const btnStart = document.getElementById('btnStart');
-    const cctvArea = document.getElementById('cctvArea');
+    const videoMonitor = document.getElementById('videoMonitor');
+    const badgeLive = document.getElementById('badgeLive');
+    const kontrolArea = document.getElementById('kontrolArea');
+    const dvrArea = document.getElementById('dvrArea');
+    const videoReplay = document.getElementById('videoReplay');
+    
+    const peer = new Peer(); 
+    let dataKoneksi = null;   
+    let micStream = null;
+    let isMicOn = false;
 
-    let peer;
-    let audioCtx;
-    let oscillator;
-    let gainNode;
-    let sirenInterval;
-    let isSirenPlaying = false;
+    // Variabel DVR (Perekam Latar Belakang)
+    let mediaRecorder;
+    let recordedChunks = [];
 
-    // TOMBOL WAJIB DIKLIK UNTUK MEMBUKA IZIN BROWSER
-    btnStart.addEventListener('click', () => {
-        btnStart.style.display = 'none';
-        cctvArea.style.display = 'block';
+    document.getElementById('btnConnect').addEventListener('click', () => {
+        statusInfo.innerText = "Mencari laptop...";
 
-        // 1. Buka Gembok AudioContext untuk Alarm
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if(audioCtx.state === 'suspended') audioCtx.resume();
+        navigator.mediaDevices.getUserMedia({ video: false, audio: true })
+            .then((streamHP) => {
+                micStream = streamHP;
+                micStream.getAudioTracks()[0].enabled = false; // Mute mic default
 
-        // 2. Mulai PeerJS
-        peer = new Peer('cctv-laptop-rahasia-123');
-        peer.on('open', (id) => {
-            statusInfo.innerText = "⏳ Kamera Aktif. Menunggu HP Pemantau...";
-            mulaiKamera();
-        });
+                const call = peer.call('cctv-laptop-rahasia-123', micStream);
+                
+                call.on('stream', (streamKamera) => {
+                    videoMonitor.srcObject = streamKamera;
+                    statusInfo.innerText = "🟢 TERHUBUNG";
+                    document.getElementById('btnConnect').style.display = 'none';
+                    kontrolArea.style.display = 'block';
+                    badgeLive.style.display = 'inline-block';
+
+                    // Otomatis mulai merekam secara background untuk fitur geser kiri
+                    mulaiPerekamanBackground(streamKamera);
+                });
+
+                dataKoneksi = peer.connect('cctv-laptop-rahasia-123');
+            })
+            .catch((err) => alert("Gagal! Pastikan izin mikrofon disetujui."));
     });
 
-    function mulaiKamera() {
-        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-            .then((stream) => {
-                videoKamera.srcObject = stream;
+    // Mic HP On/Off
+    document.getElementById('btnMic').addEventListener('click', (e) => {
+        isMicOn = !isMicOn;
+        micStream.getAudioTracks()[0].enabled = isMicOn;
+        e.target.innerText = isMicOn ? "🎙️ Mic ON" : "🔇 Mic OFF";
+        e.target.style.background = isMicOn ? "#28a745" : "#6c757d";
+    });
 
-                peer.on('call', (call) => {
-                    statusInfo.innerText = "🟢 Pemantau Sedang Menonton";
-                    call.answer(stream);
-                    
-                    // Menerima suara dari HP
-                    call.on('stream', (suaraDariHP) => {
-                        const audioRemote = new Audio();
-                        audioRemote.srcObject = suaraDariHP;
-                        audioRemote.play();
-                    });
-                });
-
-                peer.on('connection', (conn) => {
-                    conn.on('data', (data) => {
-                        if (data === 'ALARM_ON') jalankanSiren();
-                        else if (data === 'ALARM_OFF') matikanSiren();
-                    });
-                });
-            })
-            .catch((err) => {
-                statusInfo.innerText = "🔴 Gagal! Izinkan akses kamera di browser.";
-                console.error(err);
-            });
-    }
-
-    function jalankanSiren() {
-        if (isSirenPlaying) return;
-        isSirenPlaying = true;
-        statusInfo.innerText = "🚨 ALARM BERBUNYI!";
-        statusInfo.classList.add('alarm-active');
-
-        oscillator = audioCtx.createOscillator();
-        gainNode = audioCtx.createGain();
-        oscillator.type = 'square'; // Suara lebih keras dan kasar
+    // Jepret Foto
+    document.getElementById('btnJepret').addEventListener('click', () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = videoMonitor.videoWidth;
+        canvas.height = videoMonitor.videoHeight;
+        canvas.getContext('2d').drawImage(videoMonitor, 0, 0, canvas.width, canvas.height);
         
-        let naik = true;
-        sirenInterval = setInterval(() => {
-            let freq = oscillator.frequency.value;
-            freq = naik ? freq + 50 : freq - 50;
-            if (freq >= 1200) naik = false;
-            if (freq <= 600) naik = true;
-            oscillator.frequency.setValueAtTime(freq, audioCtx.currentTime);
-        }, 30);
+        const a = document.createElement('a');
+        a.download = `CCTV-${Date.now()}.jpg`;
+        a.href = canvas.toDataURL('image/jpeg');
+        a.click();
+    });
 
-        gainNode.gain.value = 1;
-        oscillator.connect(gainNode);
-        gainNode.connect(audioCtx.destination);
-        oscillator.start();
+    // Alarm
+    document.getElementById('btnAlarmOn').addEventListener('click', () => {
+        if (dataKoneksi) dataKoneksi.send('ALARM_ON');
+    });
+    document.getElementById('btnAlarmOff').addEventListener('click', () => {
+        if (dataKoneksi) dataKoneksi.send('ALARM_OFF');
+    });
+
+    // --- FITUR DVR (GESER KIRI) ---
+    function mulaiPerekamanBackground(stream) {
+        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) recordedChunks.push(e.data);
+        };
+        // Potong rekaman tiap 1 detik agar bisa di-update
+        mediaRecorder.start(1000); 
     }
 
-    function matikanSiren() {
-        if (!isSirenPlaying) return;
-        isSirenPlaying = false;
-        statusInfo.classList.remove('alarm-active');
-        statusInfo.innerText = "🟢 Pemantau Sedang Menonton";
-
-        clearInterval(sirenInterval);
-        if (oscillator) {
-            oscillator.stop();
-            oscillator.disconnect();
-        }
-    }
+    // Tombol untuk memunculkan video yang bisa digeser
+    document.getElementById('btnDVR').addEventListener('click', () => {
+        if (recordedChunks.length === 0) return alert("Belum ada data terekam. Tunggu sebentar.");
+        
+        dvrArea.style.display = 'block';
+        
+        // Gabungkan semua rekaman sementara menjadi 1 file video
+        const superBuffer = new Blob(recordedChunks, { type: 'video/webm' });
+        const videoURL = URL.createObjectURL(superBuffer);
+        
+        videoReplay.src = videoURL;
+        
+        // Otomatis geser ke akhir (kejadian terbaru) agar user tinggal geser ke kiri (mundur)
+        videoReplay.onloadedmetadata = () => {
+            videoReplay.currentTime = videoReplay.duration;
+            videoReplay.pause(); // Pause, biarkan user yang geser slider
+        };
+    });
 </script>
 
 </body>
