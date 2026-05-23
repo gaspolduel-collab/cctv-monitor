@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CCTV Pemantau (HP)</title>
+    <!-- Memuat library PeerJS -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        body { font-family: sans-serif; text-align: center; background: #111; color: white; margin: 0; padding: 20px; }
+        video { background: black; width: 100%; max-width: 600px; border-radius: 8px; margin-top: 15px; }
+        button { padding: 15px 30px; font-size: 16px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <h2>Monitor CCTV</h2>
+    <p id="statusInfo">Siap memantau.</p>
+    
+    <button id="btnConnect">Sambungkan ke Kamera</button>
+    <br>
+    <video id="videoMonitor" autoplay playsinline></video>
+
+    <script>
+        const statusInfo = document.getElementById('statusInfo');
+        const videoMonitor = document.getElementById('videoMonitor');
+        const btnConnect = document.getElementById('btnConnect');
+
+        const peer = new Peer(); // ID untuk HP bebas/acak
+
+        btnConnect.addEventListener('click', () => {
+            statusInfo.innerText = "Menghubungkan ke laptop...";
+
+            // Meminta akses mikrofon HP untuk fitur "Kirim Suara"
+            navigator.mediaDevices.getUserMedia({ video: false, audio: true })
+                .then((streamHP) => {
+                    // Menelepon ID kamera laptop dan mengirimkan stream mic HP
+                    const call = peer.call('cctv-laptop-rahasia-123', streamHP);
+
+                    // Saat laptop mengirimkan videonya, tampilkan di tag <video>
+                    call.on('stream', (streamKamera) => {
+                        videoMonitor.srcObject = streamKamera;
+                        statusInfo.innerText = "Terhubung! Sedang live.";
+                        btnConnect.style.display = 'none'; // Sembunyikan tombol setelah konek
+                    });
+                })
+                .catch((err) => {
+                    alert("Mohon izinkan akses mikrofon agar bisa mengirim suara.");
+                    console.error(err);
+                });
+        });
+    </script>
+
+</body>
+</html>
