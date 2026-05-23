@@ -27,7 +27,7 @@
     <h2>📱 Monitor HP</h2>
     <p id="statusInfo">Klik tombol untuk menyambungkan</p>
     
-    <button id="btnConnect" class="btn">🔌 Sambungkan ke Kamera Laptop</button>
+    <button id="btnConnect" class="btn">🔌 Sambungkan ke Kamera</button>
     
     <div style="position: relative; max-width: 500px; margin: auto;">
         <span id="badgeLive" class="badge" style="position: absolute; top: 15px; right: 10px; display: none;">🔴 REC</span>
@@ -57,7 +57,7 @@
     </div>
 
 <script>
-    const ID_TUJUAN = 'cctv-pribadi-final-999';
+    const ID_KUNCI_CCTV = 'cctv-super-anti-gagal-777';
 
     const statusInfo = document.getElementById('statusInfo');
     const videoMonitor = document.getElementById('videoMonitor');
@@ -77,46 +77,55 @@
     let mediaRecorder;
     let recordedChunks = [];
 
-    document.getElementById('btnConnect').addEventListener('click', () => {
+    // Fungsi canggih untuk membuat "Dummy Stream" (Suara kosong)
+    function buatDummyStream() {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const dest = ctx.createMediaStreamDestination();
+        return dest.stream;
+    }
+
+    document.getElementById('btnConnect').addEventListener('click', async () => {
         statusInfo.innerText = "Mencari laptop...";
 
-        // Wajib izinkan mic di HP agar koneksi tidak patah
-        navigator.mediaDevices.getUserMedia({ video: false, audio: true })
-            .then((streamHP) => {
-                micStream = streamHP;
-                micStream.getAudioTracks()[0].enabled = false; // Default mute
+        // Coba minta mic asli, kalau gagal (misal diblokir HP), pakai stream kosong.
+        // INI KUNCI UTAMA BIAR PEERJS GAK NGAMBEK DAN KONEKSI GAK PUTUS!
+        try {
+            micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            micStream.getAudioTracks()[0].enabled = false; // Default mati
+        } catch (err) {
+            console.log("Mic asli diblokir, pakai Dummy Stream agar video tetap tembus.");
+            micStream = buatDummyStream(); 
+        }
 
-                const call = peer.call(ID_TUJUAN, micStream);
-                
-                call.on('stream', (streamKamera) => {
-                    // Cegah bug PeerJS yang memuat stream dobel (penyebab layar hitam)
-                    if (videoMonitor.srcObject !== streamKamera) {
-                        videoMonitor.srcObject = streamKamera;
-                    }
-                    
-                    teksBantu.style.display = 'block';
+        const call = peer.call(ID_KUNCI_CCTV, micStream);
+        
+        call.on('stream', (streamKamera) => {
+            // Pasang stream kamera ke layar
+            videoMonitor.srcObject = streamKamera;
+            teksBantu.style.display = 'block';
 
-                    videoMonitor.play().then(() => {
-                        teksBantu.style.display = 'none'; 
-                    }).catch(e => console.log("Butuh klik layar agar jalan."));
+            // Paksa jalankan video (Penangkal Layar Hitam)
+            videoMonitor.play().then(() => {
+                teksBantu.style.display = 'none'; 
+            }).catch(e => console.log("Perlu diklik manual"));
 
-                    statusInfo.innerText = "🟢 TERHUBUNG DENGAN KAMERA";
-                    document.getElementById('btnConnect').style.display = 'none';
-                    kontrolArea.style.display = 'block';
-                    badgeLive.style.display = 'inline-block';
+            statusInfo.innerText = "🟢 TERHUBUNG DENGAN KAMERA";
+            document.getElementById('btnConnect').style.display = 'none';
+            kontrolArea.style.display = 'block';
+            badgeLive.style.display = 'inline-block';
 
-                    mulaiPerekamanBackground(streamKamera);
-                });
+            mulaiPerekamanBackground(streamKamera);
+        });
 
-                dataKoneksi = peer.connect(ID_TUJUAN);
-            })
-            .catch((err) => {
-                alert("Gagal! Browser memblokir Mic. Izinkan Mic agar bisa menyambung.");
-            });
+        // Buka jalur data untuk tombol ALARM
+        dataKoneksi = peer.connect(ID_KUNCI_CCTV);
     });
 
     document.getElementById('btnMic').addEventListener('click', (e) => {
-        if (!micStream) return;
+        if (!micStream || micStream.getAudioTracks().length === 0) {
+            alert("Akses mic asli belum diizinkan oleh HP kamu.");
+            return;
+        }
         isMicOn = !isMicOn;
         micStream.getAudioTracks()[0].enabled = isMicOn;
         e.target.innerText = isMicOn ? "🎙️ Mic ON" : "🔇 Mic OFF";
@@ -151,13 +160,10 @@
     }
 
     document.getElementById('btnDVR').addEventListener('click', () => {
-        if (recordedChunks.length === 0) return alert("Belum ada data terekam. Tunggu sebentar.");
-        
+        if (recordedChunks.length === 0) return alert("Belum ada data terekam.");
         dvrArea.style.display = 'block';
         const superBuffer = new Blob(recordedChunks, { type: 'video/webm' });
-        const videoURL = URL.createObjectURL(superBuffer);
-        
-        videoReplay.src = videoURL;
+        videoReplay.src = URL.createObjectURL(superBuffer);
     });
 </script>
 </body>
